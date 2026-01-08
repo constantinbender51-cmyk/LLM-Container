@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Container</title>
+    <style>
+        :root {
+            --bg: #1e1e1e;
+            --box-bg: #2d2d2d;
+            --text: #ffffff;
+            --accent: #4caf50;
+            --inactive: #555;
+            --border: #444;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+
+        /* --- Header --- */
+        h1 { text-align: center; margin-bottom: 5px; letter-spacing: 2px; }
+        .subtitle-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .subtitle { font-size: 0.9rem; color: #aaa; }
+        select {
+            background: var(--box-bg);
+            color: white;
+            border: 1px solid var(--border);
+            padding: 5px;
+            border-radius: 4px;
+        }
+
+        /* --- Main Layout --- */
+        .main-wrapper {
+            display: flex;
+            width: 100%;
+            height: 60%; /* Adjusts height of chat area */
+            position: relative;
+        }
+
+        /* --- Chat Box --- */
+        .chat-box {
+            background-color: var(--box-bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            margin: 0 5%;
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .message { padding: 10px; border-radius: 8px; max-width: 80%; }
+        .user-msg { background-color: #3d3d3d; align-self: flex-end; }
+        .bot-msg { background-color: #252526; align-self: flex-start; border: 1px solid #444; }
+
+        /* --- Loading Animation (Dots) --- */
+        .typing-indicator span {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            background-color: #fff;
+            border-radius: 50%;
+            animation: typing 1.4s infinite ease-in-out both;
+            margin: 0 2px;
+        }
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+        .loading-container { display: none; padding: 10px; }
+
+        /* --- Instructions Sidebar (Right Column) --- */
+        .instructions-column {
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 18%; /* Estimated space between 5% margin and edge with padding */
+            padding-right: 10px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .instruction-box {
+            display: flex;
+            height: 50px;
+            background: var(--box-bg);
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            cursor: pointer;
+            overflow: hidden;
+            transition: 0.2s;
+        }
+        
+        .inst-content {
+            flex: 8;
+            display: flex;
+            align-items: center;
+            padding-left: 10px;
+            font-size: 0.8rem;
+            border-right: 1px solid var(--border);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .inst-toggle {
+            flex: 2; /* 20% width */
+            background-color: var(--inactive);
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .inst-toggle.active { background-color: var(--accent); }
+
+        .add-btn {
+            text-align: center;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--accent);
+            padding: 5px;
+        }
+
+        /* --- Popup Modal --- */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--box-bg);
+            padding: 20px;
+            border: 1px solid var(--border);
+            z-index: 100;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            border-radius: 8px;
+            width: 300px;
+        }
+        .modal input { width: 100%; padding: 8px; margin-bottom: 10px; background: #444; color: white; border: none; }
+        .modal button { width: 100%; padding: 8px; background: var(--accent); border: none; color: white; cursor: pointer; }
+        .overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:99; }
+
+        /* --- Input Box --- */
+        .input-container {
+            width: 80%; /* 10% margin either side (100 - 10 - 10) */
+            margin: 20px auto 0 auto;
+            height: 60px;
+            background: var(--box-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-container input {
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            border: none;
+            color: white;
+            padding-left: 20px;
+            padding-right: 80px; /* Space for button */
+            font-size: 1rem;
+            outline: none;
+        }
+
+        .send-btn {
+            position: absolute;
+            right: 4%;
+            background: var(--accent);
+            border: none;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        /* --- Load Model Box --- */
+        .load-container {
+            width: 80%;
+            margin: 20px auto;
+            background: var(--box-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-sizing: border-box;
+        }
+        
+        .load-left { display: flex; align-items: center; gap: 10px; width: 85%; }
+        .load-left input { flex-grow: 1; padding: 8px; background: #444; border: none; color: white; border-radius: 4px;}
+        .load-btn { background: var(--accent); border: none; color: white; padding: 8px 20px; border-radius: 4px; cursor: pointer; }
+
+    </style>
+</head>
+<body>
+
+    <h1>LLM CONTAINER</h1>
+    <div class="subtitle-container">
+        <select id="modelSelector">
+            <option value="" disabled selected>Select saved model</option>
+            {% for model in models %}
+            <option value="{{ model }}">{{ model }}</option>
+            {% endfor %}
+        </select>
+        <span class="subtitle">Loaded model: <span id="currentModelDisplay">{{ current_model }}</span></span>
+    </div>
+
+    <div class="main-wrapper">
+        <div class="chat-box" id="chatBox">
+            <div class="message bot-msg">System ready. Load a model to begin.</div>
+            
+            <div class="loading-container" id="loadingDots">
+                <div class="typing-indicator"><span></span><span></span><span></span></div>
+            </div>
+        </div>
+
+        <div class="instructions-column" id="instCol">
+            <div class="instruction-box" id="inst-0">
+                <div class="inst-content" onclick="editInst(0)">Be concise</div>
+                <div class="inst-toggle" onclick="toggleInst(0)"></div>
+            </div>
+            <div class="instruction-box" id="inst-1">
+                <div class="inst-content" onclick="editInst(1)">Act like a pirate</div>
+                <div class="inst-toggle" onclick="toggleInst(1)"></div>
+            </div>
+            <div class="instruction-box" id="inst-2">
+                <div class="inst-content" onclick="editInst(2)">Use JSON format</div>
+                <div class="inst-toggle" onclick="toggleInst(2)"></div>
+            </div>
+            
+            <div class="add-btn" onclick="addInst()">+</div>
+        </div>
+    </div>
+
+    <div class="input-container">
+        <input type="text" id="userMessage" placeholder="Type your message..." onkeydown="if(event.key === 'Enter') sendMessage()">
+        <button class="send-btn" onclick="sendMessage()">Send</button>
+    </div>
+
+    <div class="load-container">
+        <div class="load-left">
+            <span>Load model:</span>
+            <input type="text" id="modelUrl" placeholder="Paste GGUF link (e.g. HuggingFace URL)">
+        </div>
+        <button class="load-btn" onclick="loadModel()">Start</button>
+    </div>
+
+    <div class="overlay" id="overlay" onclick="closeModal()"></div>
+    <div class="modal" id="editModal">
+        <h3>Edit Instruction</h3>
+        <input type="text" id="instInput">
+        <button onclick="saveInst()">Save</button>
+    </div>
+
+    <script>
+        // State
+        let instructions = [
+            { text: "Be concise", active: false },
+            { text: "Act like a pirate", active: false },
+            { text: "Use JSON format", active: false }
+        ];
+        let editingIndex = null;
+        let chatHistory = [];
+
+        // --- Instructions Logic ---
+        function renderInst() {
+            const container = document.getElementById('instCol');
+            container.innerHTML = '';
+            instructions.forEach((inst, index) => {
+                const div = document.createElement('div');
+                div.className = 'instruction-box';
+                div.innerHTML = `
+                    <div class="inst-content" onclick="editInst(${index})">${inst.text || 'Empty'}</div>
+                    <div class="inst-toggle ${inst.active ? 'active' : ''}" onclick="toggleInst(${index})"></div>
+                `;
+                container.appendChild(div);
+            });
+            const plus = document.createElement('div');
+            plus.className = 'add-btn';
+            plus.innerText = '+';
+            plus.onclick = addInst;
+            container.appendChild(plus);
+        }
+
+        function toggleInst(index) {
+            instructions[index].active = !instructions[index].active;
+            renderInst();
+        }
+
+        function addInst() {
+            instructions.push({ text: "New instruction", active: false });
+            renderInst();
+        }
+
+        function editInst(index) {
+            editingIndex = index;
+            document.getElementById('instInput').value = instructions[index].text;
+            document.getElementById('overlay').style.display = 'block';
+            document.getElementById('editModal').style.display = 'block';
+        }
+
+        function saveInst() {
+            const val = document.getElementById('instInput').value;
+            if(editingIndex !== null) {
+                instructions[editingIndex].text = val;
+                renderInst();
+                closeModal();
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('overlay').style.display = 'none';
+            document.getElementById('editModal').style.display = 'none';
+            editingIndex = null;
+        }
+
+        // --- Model Logic ---
+        async function loadModel() {
+            const url = document.getElementById('modelUrl').value;
+            const btn = document.querySelector('.load-btn');
+            const status = document.getElementById('currentModelDisplay');
+            
+            if(!url) return alert("Enter a URL");
+
+            btn.innerText = "Downloading...";
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/load_url', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ url: url })
+                });
+                const data = await res.json();
+                if(res.ok) {
+                    status.innerText = data.model;
+                    alert("Model Loaded Successfully");
+                    // Refresh page to update dropdown (optional, or insert manually)
+                    location.reload(); 
+                } else {
+                    alert("Error: " + data.detail);
+                }
+            } catch(e) {
+                alert("Network error");
+            } finally {
+                btn.innerText = "Start";
+                btn.disabled = false;
+            }
+        }
+
+        document.getElementById('modelSelector').addEventListener('change', async (e) => {
+            const filename = e.target.value;
+            const status = document.getElementById('currentModelDisplay');
+            status.innerText = "Loading...";
+            
+            const res = await fetch('/select_model', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ filename: filename })
+            });
+            
+            if(res.ok) {
+                status.innerText = filename;
+            } else {
+                status.innerText = "Error";
+            }
+        });
+
+        // --- Chat Logic ---
+        async function sendMessage() {
+            const input = document.getElementById('userMessage');
+            const chatBox = document.getElementById('chatBox');
+            const loader = document.getElementById('loadingDots');
+            const msg = input.value.trim();
+
+            if(!msg) return;
+
+            // Add user message
+            chatBox.insertBefore(createMsgDiv(msg, 'user-msg'), loader);
+            input.value = '';
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            // Show loading
+            loader.style.display = 'block';
+
+            // Prepare payload
+            const activeInst = instructions.filter(i => i.active).map(i => i.text);
+            const payload = {
+                message: msg,
+                history: chatHistory,
+                instructions: activeInst
+            };
+
+            // Fetch
+            try {
+                const res = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                
+                // Hide loading
+                loader.style.display = 'none';
+
+                // Add bot message
+                chatBox.insertBefore(createMsgDiv(data.response, 'bot-msg'), loader);
+                
+                // Update history
+                chatHistory.push({role: 'user', content: msg});
+                chatHistory.push({role: 'assistant', content: data.response});
+                
+            } catch(e) {
+                loader.style.display = 'none';
+                chatBox.insertBefore(createMsgDiv("Error communicating with server.", 'bot-msg'), loader);
+            }
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function createMsgDiv(text, className) {
+            const div = document.createElement('div');
+            div.className = `message ${className}`;
+            div.innerText = text;
+            return div;
+        }
+
+        // Init
+        renderInst();
+    </script>
+</body>
+</html>
