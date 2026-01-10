@@ -49,7 +49,7 @@
         .main-wrapper {
             display: flex;
             width: 100%;
-            height: 60%; /* Adjusts height of chat area */
+            height: 60%; 
             position: relative;
         }
 
@@ -67,11 +67,11 @@
             gap: 10px;
         }
 
-        .message { padding: 10px; border-radius: 8px; max-width: 80%; }
+        .message { padding: 10px; border-radius: 8px; max-width: 80%; white-space: pre-wrap; }
         .user-msg { background-color: #3d3d3d; align-self: flex-end; }
         .bot-msg { background-color: #252526; align-self: flex-start; border: 1px solid #444; }
 
-        /* --- Loading Animation (Dots) --- */
+        /* --- Loading Animation --- */
         .typing-indicator span {
             display: inline-block;
             width: 6px;
@@ -89,13 +89,13 @@
         }
         .loading-container { display: none; padding: 10px; }
 
-        /* --- Instructions Sidebar (Right Column) --- */
+        /* --- Instructions Sidebar --- */
         .instructions-column {
             position: absolute;
             right: 0;
             top: 0;
             bottom: 0;
-            width: 18%; /* Estimated space between 5% margin and edge with padding */
+            width: 18%; 
             padding-right: 10px;
             overflow-y: auto;
             display: flex;
@@ -105,7 +105,7 @@
 
         .instruction-box {
             display: flex;
-            height: 50px;
+            min-height: 50px;
             background: var(--box-bg);
             border: 1px solid var(--border);
             border-radius: 5px;
@@ -118,16 +118,18 @@
             flex: 8;
             display: flex;
             align-items: center;
-            padding-left: 10px;
+            padding: 10px;
             font-size: 0.8rem;
             border-right: 1px solid var(--border);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            display: block; /* For ellipsis to work */
         }
 
         .inst-toggle {
-            flex: 2; /* 20% width */
+            flex: 2; 
+            min-width: 30px;
             background-color: var(--inactive);
             cursor: pointer;
             transition: background 0.3s;
@@ -154,46 +156,66 @@
             z-index: 100;
             box-shadow: 0 4px 15px rgba(0,0,0,0.5);
             border-radius: 8px;
-            width: 300px;
+            width: 400px;
         }
-        .modal input { width: 100%; padding: 8px; margin-bottom: 10px; background: #444; color: white; border: none; }
+        /* Changed to textarea for multiline instructions */
+        .modal textarea { 
+            width: 100%; 
+            padding: 8px; 
+            margin-bottom: 10px; 
+            background: #444; 
+            color: white; 
+            border: none; 
+            resize: vertical;
+            height: 100px;
+            font-family: inherit;
+        }
         .modal button { width: 100%; padding: 8px; background: var(--accent); border: none; color: white; cursor: pointer; }
         .overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:99; }
 
-        /* --- Input Box --- */
+        /* --- Multi-line Input Box --- */
         .input-container {
-            width: 80%; /* 10% margin either side (100 - 10 - 10) */
+            width: 80%;
             margin: 20px auto 0 auto;
-            height: 60px;
+            min-height: 50px;
             background: var(--box-bg);
             border: 1px solid var(--border);
             border-radius: 8px;
             position: relative;
             display: flex;
-            align-items: center;
+            align-items: flex-end; /* Align bottom so it grows up */
+            padding: 5px;
+            box-sizing: border-box;
         }
 
-        .input-container input {
+        .input-container textarea {
             width: 100%;
-            height: 100%;
             background: transparent;
             border: none;
             color: white;
-            padding-left: 20px;
-            padding-right: 80px; /* Space for button */
+            padding: 10px 90px 10px 10px; /* Right padding for button */
             font-size: 1rem;
             outline: none;
+            resize: none;
+            overflow-y: hidden; /* Hidden by default, scroll if max-height hit */
+            font-family: inherit;
+            line-height: 1.4;
+            max-height: 120px; /* Approx 5 lines */
+            height: 44px; /* Base height */
+            box-sizing: border-box;
         }
 
         .send-btn {
             position: absolute;
-            right: 4%;
+            right: 10px;
+            bottom: 8px;
             background: var(--accent);
             border: none;
             color: white;
             padding: 8px 20px;
             border-radius: 4px;
             cursor: pointer;
+            height: 35px;
         }
 
         /* --- Load Model Box --- */
@@ -239,25 +261,11 @@
         </div>
 
         <div class="instructions-column" id="instCol">
-            <div class="instruction-box" id="inst-0">
-                <div class="inst-content" onclick="editInst(0)">Be concise</div>
-                <div class="inst-toggle" onclick="toggleInst(0)"></div>
             </div>
-            <div class="instruction-box" id="inst-1">
-                <div class="inst-content" onclick="editInst(1)">Act like a pirate</div>
-                <div class="inst-toggle" onclick="toggleInst(1)"></div>
-            </div>
-            <div class="instruction-box" id="inst-2">
-                <div class="inst-content" onclick="editInst(2)">Use JSON format</div>
-                <div class="inst-toggle" onclick="toggleInst(2)"></div>
-            </div>
-            
-            <div class="add-btn" onclick="addInst()">+</div>
-        </div>
     </div>
 
     <div class="input-container">
-        <input type="text" id="userMessage" placeholder="Type your message..." onkeydown="if(event.key === 'Enter') sendMessage()">
+        <textarea id="userMessage" placeholder="Type your message... (Enter for new line)" rows="1"></textarea>
         <button class="send-btn" onclick="sendMessage()">Send</button>
     </div>
 
@@ -272,17 +280,13 @@
     <div class="overlay" id="overlay" onclick="closeModal()"></div>
     <div class="modal" id="editModal">
         <h3>Edit Instruction</h3>
-        <input type="text" id="instInput">
+        <textarea id="instInput"></textarea>
         <button onclick="saveInst()">Save</button>
     </div>
 
     <script>
-        // State
-        let instructions = [
-            { text: "Be concise", active: false },
-            { text: "Act like a pirate", active: false },
-            { text: "Use JSON format", active: false }
-        ];
+        // State (Preloaded from Jinja variable)
+        let instructions = {{ saved_instructions | tojson }};
         let editingIndex = null;
         let chatHistory = [];
 
@@ -306,14 +310,28 @@
             container.appendChild(plus);
         }
 
+        async function syncInstructions() {
+            try {
+                await fetch('/save_instructions', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ instructions: instructions })
+                });
+            } catch(e) {
+                console.error("Failed to save instructions", e);
+            }
+        }
+
         function toggleInst(index) {
             instructions[index].active = !instructions[index].active;
             renderInst();
+            syncInstructions(); // Persist change
         }
 
         function addInst() {
             instructions.push({ text: "New instruction", active: false });
             renderInst();
+            syncInstructions(); // Persist change
         }
 
         function editInst(index) {
@@ -329,6 +347,7 @@
                 instructions[editingIndex].text = val;
                 renderInst();
                 closeModal();
+                syncInstructions(); // Persist change
             }
         }
 
@@ -359,7 +378,6 @@
                 if(res.ok) {
                     status.innerText = data.model;
                     alert("Model Loaded Successfully");
-                    // Refresh page to update dropdown (optional, or insert manually)
                     location.reload(); 
                 } else {
                     alert("Error: " + data.detail);
@@ -401,7 +419,11 @@
 
             // Add user message
             chatBox.insertBefore(createMsgDiv(msg, 'user-msg'), loader);
+            
+            // Reset Input
             input.value = '';
+            input.style.height = '44px'; // Reset height
+            input.style.overflowY = 'hidden';
             chatBox.scrollTop = chatBox.scrollHeight;
 
             // Show loading
@@ -447,6 +469,21 @@
             div.innerText = text;
             return div;
         }
+
+        // --- Auto-expand Textarea Logic ---
+        const textarea = document.getElementById('userMessage');
+        
+        textarea.addEventListener('input', function() {
+            this.style.height = 'auto'; // Reset to recalculate
+            this.style.height = (this.scrollHeight) + 'px';
+            
+            // Toggle scrollbar if max-height (defined in CSS ~120px) is reached
+            if (this.scrollHeight > 120) {
+                this.style.overflowY = 'auto';
+            } else {
+                this.style.overflowY = 'hidden';
+            }
+        });
 
         // Init
         renderInst();
