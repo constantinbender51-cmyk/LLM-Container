@@ -48,7 +48,7 @@ def load_stored_instructions():
                 return json.load(f)
         except:
             pass
-    # Defaults if file doesn't exist
+    # Default defaults if file doesn't exist
     return [
         {"text": "Be concise", "active": False},
         {"text": "Act like a pirate", "active": False},
@@ -63,14 +63,8 @@ def save_stored_instructions(inst_list):
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
-    # List ALL files in the directory to catch those with weird extensions
-    # Excluding hidden files like .DS_Store or .gitignore
-    models = [
-        f for f in os.listdir(MODEL_DIR) 
-        if os.path.isfile(os.path.join(MODEL_DIR, f)) and not f.startswith('.')
-    ]
-    models.sort()
-    
+    # List models in volume
+    models = [os.path.basename(x) for x in glob.glob(f"{MODEL_DIR}/*.gguf")]
     stored_inst = load_stored_instructions()
     
     return templates.TemplateResponse("index.html", {
@@ -93,14 +87,7 @@ async def load_model_from_url(payload: LoadModelRequest):
     global current_llm, current_model_name
     
     url = payload.url
-    
-    # Clean filename from URL arguments (removes ?download=true etc)
-    filename = url.split("/")[-1].split("?")[0]
-    
-    # Ensure it ends with .gguf if it doesn't have an extension (optional safety)
-    if "." not in filename:
-        filename += ".gguf"
-        
+    filename = url.split("/")[-1]
     filepath = os.path.join(MODEL_DIR, filename)
 
     # Download if not exists
@@ -111,6 +98,7 @@ async def load_model_from_url(payload: LoadModelRequest):
             response.raise_for_status()
             
             total_size = int(response.headers.get('content-length', 0))
+            block_size = 1024 * 1024 # 1MB chunks
             wrote = 0
             
             with open(filepath, 'wb') as f:
@@ -129,7 +117,7 @@ async def load_model_from_url(payload: LoadModelRequest):
             
             print("\nDownload complete.")
         except Exception as e:
-            # Clean up partial file on failure
+            # Clean up partial file
             if os.path.exists(filepath):
                 os.remove(filepath)
             raise HTTPException(status_code=400, detail=f"Download failed: {str(e)}")
@@ -165,7 +153,7 @@ async def chat(payload: ChatRequest):
     # Construct Prompt
     system_prompt = "System: You are a helpful assistant."
     if payload.instructions:
-        # Join multi-line instructions into a single line for the prompt
+        # Join multi-line instructions properly
         full_inst = " ".join(payload.instructions).replace("\n", " ")
         system_prompt += f" {full_inst}"
     
@@ -177,14 +165,12 @@ async def chat(payload: ChatRequest):
     prompt_text += f"User: {payload.message}\nAssistant:"
 
     # Inference
-    try:
-        output = current_llm(
-            prompt_text, 
-            max_tokens=512, 
-            stop=["User:", "\nUser"], 
-            echo=False
-        )
-        response_text = output['choices'][0]['text'].strip()
-        return {"response": response_text}
-    except Exception as e:
-        return {"response": f"Error during inference: {str(e)}"}
+    output = current_llm(
+        prompt_text, 
+        max_tokens=256, 
+        stop=["User:", "\nUser"], 
+        echo=False
+    )
+    
+    response_text = output['choices'][0]['text'].strip()
+    return {"response": response_text}
