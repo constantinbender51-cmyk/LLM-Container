@@ -63,12 +63,18 @@ def save_stored_instructions(inst_list):
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
-    # List ALL files in the directory to catch those with weird extensions
-    # Excluding hidden files like .DS_Store or .gitignore
-    models = [
-        f for f in os.listdir(MODEL_DIR) 
-        if os.path.isfile(os.path.join(MODEL_DIR, f)) and not f.startswith('.')
-    ]
+    models = []
+    # Recursively walk through MODEL_DIR to find files in subdirectories
+    for root, dirs, files in os.walk(MODEL_DIR):
+        for f in files:
+            # Skip hidden files like .DS_Store or partial downloads starting with '.'
+            if f.startswith('.'):
+                continue
+            
+            # Get the path relative to MODEL_DIR (e.g., 'subfolder/model.gguf')
+            rel_path = os.path.relpath(os.path.join(root, f), MODEL_DIR)
+            models.append(rel_path)
+            
     models.sort()
     
     stored_inst = load_stored_instructions()
@@ -94,10 +100,9 @@ async def load_model_from_url(payload: LoadModelRequest):
     
     url = payload.url
     
-    # Clean filename from URL arguments (removes ?download=true etc)
+    # Clean filename from URL arguments
     filename = url.split("/")[-1].split("?")[0]
     
-    # Ensure it ends with .gguf if it doesn't have an extension (optional safety)
     if "." not in filename:
         filename += ".gguf"
         
@@ -119,7 +124,6 @@ async def load_model_from_url(payload: LoadModelRequest):
                         f.write(chunk)
                         wrote += len(chunk)
                         
-                        # Console Progress
                         if total_size > 0:
                             percent = (wrote / total_size) * 100
                             sys.stdout.write(f"\rDownloading... {percent:.2f}% ({wrote//1024//1024}MB / {total_size//1024//1024}MB)")
@@ -129,7 +133,6 @@ async def load_model_from_url(payload: LoadModelRequest):
             
             print("\nDownload complete.")
         except Exception as e:
-            # Clean up partial file on failure
             if os.path.exists(filepath):
                 os.remove(filepath)
             raise HTTPException(status_code=400, detail=f"Download failed: {str(e)}")
@@ -162,10 +165,8 @@ async def chat(payload: ChatRequest):
     if not current_llm:
         return {"response": "Error: No model loaded. Please load a model first."}
 
-    # Construct Prompt
     system_prompt = "System: You are a helpful assistant."
     if payload.instructions:
-        # Join multi-line instructions into a single line for the prompt
         full_inst = " ".join(payload.instructions).replace("\n", " ")
         system_prompt += f" {full_inst}"
     
@@ -176,7 +177,6 @@ async def chat(payload: ChatRequest):
     
     prompt_text += f"User: {payload.message}\nAssistant:"
 
-    # Inference
     try:
         output = current_llm(
             prompt_text, 
