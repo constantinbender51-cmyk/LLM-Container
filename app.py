@@ -14,8 +14,8 @@ app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
 # CONFIGURATION
-MODEL_DIR = "/app/models"
-DATA_DIR = "/app/data"
+MODEL_DIR = "/mnt/models"
+DATA_DIR = "/mnt/data"
 INSTRUCTIONS_FILE = os.path.join(DATA_DIR, "instructions.json")
 
 os.makedirs(MODEL_DIR, exist_ok=True)
