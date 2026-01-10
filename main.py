@@ -13,7 +13,7 @@ app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
 # CONFIGURATION
-MODEL_DIR = "/app/models"
+MODEL_DIR = "models"
 os.makedirs(MODEL_DIR, exist_ok=True)
 
 # GLOBAL STATE
