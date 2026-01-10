@@ -163,7 +163,7 @@ async def chat(payload: ChatRequest):
         return {"response": "Error: No model loaded. Please load a model first."}
 
     # Construct Prompt
-    system_prompt = "System: You are a helpful assistant."
+    system_prompt = "System: You are an elephant with demeanor."
     if payload.instructions:
         # Join multi-line instructions into a single line for the prompt
         full_inst = " ".join(payload.instructions).replace("\n", " ")
