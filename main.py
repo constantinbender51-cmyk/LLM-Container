@@ -1,11 +1,10 @@
 import os
 import glob
-import json
-import sys
 import requests
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from llama_cpp import Llama
 from typing import List, Optional
@@ -15,17 +14,12 @@ templates = Jinja2Templates(directory="templates")
 
 # CONFIGURATION
 MODEL_DIR = "/app/models"
-DATA_DIR = "/app/data"
-INSTRUCTIONS_FILE = os.path.join(DATA_DIR, "instructions.json")
-
 os.makedirs(MODEL_DIR, exist_ok=True)
-os.makedirs(DATA_DIR, exist_ok=True)
 
 # GLOBAL STATE
 current_llm = None
 current_model_name = "None"
 
-# --- Data Models ---
 class ChatRequest(BaseModel):
     message: str
     history: List[dict]
@@ -37,50 +31,15 @@ class LoadModelRequest(BaseModel):
 class SelectModelRequest(BaseModel):
     filename: str
 
-class SaveInstructionsRequest(BaseModel):
-    instructions: List[dict]
-
-# --- Helpers ---
-def load_stored_instructions():
-    if os.path.exists(INSTRUCTIONS_FILE):
-        try:
-            with open(INSTRUCTIONS_FILE, 'r') as f:
-                return json.load(f)
-        except:
-            pass
-    # Default defaults if file doesn't exist
-    return [
-        {"text": "Be concise", "active": False},
-        {"text": "Act like a pirate", "active": False},
-        {"text": "Use JSON format", "active": False}
-    ]
-
-def save_stored_instructions(inst_list):
-    with open(INSTRUCTIONS_FILE, 'w') as f:
-        json.dump(inst_list, f, indent=2)
-
-# --- Routes ---
-
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     # List models in volume
     models = [os.path.basename(x) for x in glob.glob(f"{MODEL_DIR}/*.gguf")]
-    stored_inst = load_stored_instructions()
-    
     return templates.TemplateResponse("index.html", {
         "request": request, 
         "models": models,
-        "current_model": current_model_name,
-        "saved_instructions": stored_inst
+        "current_model": current_model_name
     })
-
-@app.post("/save_instructions")
-async def save_instructions_endpoint(payload: SaveInstructionsRequest):
-    try:
-        save_stored_instructions(payload.instructions)
-        return {"status": "success"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/load_url")
 async def load_model_from_url(payload: LoadModelRequest):
@@ -93,33 +52,14 @@ async def load_model_from_url(payload: LoadModelRequest):
     # Download if not exists
     if not os.path.exists(filepath):
         try:
-            print(f"Starting download: {filename}")
+            print(f"Downloading {filename}...")
             response = requests.get(url, stream=True)
             response.raise_for_status()
-            
-            total_size = int(response.headers.get('content-length', 0))
-            block_size = 1024 * 1024 # 1MB chunks
-            wrote = 0
-            
             with open(filepath, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-                        wrote += len(chunk)
-                        
-                        # Console Progress
-                        if total_size > 0:
-                            percent = (wrote / total_size) * 100
-                            sys.stdout.write(f"\rDownloading... {percent:.2f}% ({wrote//1024//1024}MB / {total_size//1024//1024}MB)")
-                        else:
-                            sys.stdout.write(f"\rDownloading... {wrote//1024//1024}MB")
-                        sys.stdout.flush()
-            
-            print("\nDownload complete.")
+                    f.write(chunk)
+            print("Download complete.")
         except Exception as e:
-            # Clean up partial file
-            if os.path.exists(filepath):
-                os.remove(filepath)
             raise HTTPException(status_code=400, detail=f"Download failed: {str(e)}")
 
     # Load Model
@@ -153,9 +93,7 @@ async def chat(payload: ChatRequest):
     # Construct Prompt
     system_prompt = "System: You are a helpful assistant."
     if payload.instructions:
-        # Join multi-line instructions properly
-        full_inst = " ".join(payload.instructions).replace("\n", " ")
-        system_prompt += f" {full_inst}"
+        system_prompt += " " + " ".join(payload.instructions)
     
     prompt_text = f"{system_prompt}\n"
     for msg in payload.history:
